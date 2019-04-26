@@ -1,0 +1,2 @@
+# ntpclient
+ntpclient is an NTP (RFC-1305) client for unix-alike computers. Its functionality is a small subset of xntpd, but IMHO performs better (or at least has the potential to function better) within that limited scope. Since it is much smaller than xntpd, it is also more relevant for embedded computers.  ntpclient is Copyright (C) 1997-2015 Larry Doolittle, and may be freely copied and modified according to the terms of the GNU General Public License, version 2.
