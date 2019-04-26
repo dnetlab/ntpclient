@@ -611,7 +611,7 @@ int main(int argc, char *argv[]) {
 	ntpc.cross_check=1;
 
 	for (;;) {
-		c = getopt( argc, argv, "c:" DEBUG_OPTION "f:g:h:i:lp:q:" REPLAY_OPTION "st");
+		c = getopt( argc, argv, "c:" DEBUG_OPTION "f:g:h:i:lp:q:" REPLAY_OPTION "stD");
 		if (c == EOF) break;
 		switch (c) {
 			case 'c':
@@ -659,7 +659,11 @@ int main(int argc, char *argv[]) {
 			case 't':
 				(ntpc.cross_check)=0;
 				break;
-
+				
+			case 'D':
+				daemon(0, 0);
+				break;
+				
 			default:
 				usage(argv[0]);
 				exit(1);
