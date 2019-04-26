@@ -4,7 +4,7 @@ better (or at least has the potential to function better) within
 that limited scope.  Since it is much smaller than xntpd, it is
 also more relevant for embedded computers.
 
-ntpclient is Copyright 1997, 1999, 2000, 2003, 2006, 2007 Larry Doolittle,
+ntpclient is Copyright 1997-2015 Larry Doolittle,
 and may be freely copied and modified according to the terms of the GNU
 General Public License, version 2.  If you want to distribute ntpclient
 under other terms, contact me.  I might agree to some other arrangement,
@@ -17,6 +17,14 @@ http://vmlinux.org/jocke/ntpclient.shtml.  We don't have the same
 maintainance and build system sensibilities; some people may prefer his.
 In particular, he has converted his ntpclient to daemon and syslog.
 The basic functionality of the two versions should be identical.
+
+I found three forks of ntpclient on github:
+  https://github.com/wlach/ntpclient-android
+    Android-specific fork of Larry Doolittle's ntpclient program
+  https://github.com/troglobit/ntpclient
+    Fork of Larry Doolittle's ntpclient with damon and syslog support
+  https://github.com/ChristophGr/ntpclient
+    This is a fork starting with the code provided by Larry Doolittle
 
 To build on Linux, type "make".  Solaris and other Unix users will
 probably need to adjust the Makefile slightly.  It's not complex.
@@ -34,8 +42,9 @@ editing the Makefile.  Either do or don't define
   PRECISION_SIOCGSTAMP
 Try it first without changing the default: that will give you a full-
 featured ntpclient, that uses modern POSIX time functions, and works
-reasonably with any Linux kernel.  There are comments in ntpclient.c
-that you should read before experimenting with PRECISION_SIOCGSTAMP.
+reasonably with all Linux kernels I have access to in 2015.  There are
+comments in ntpclient.c that you should read before experimenting with
+PRECISION_SIOCGSTAMP.
 
 Some older but otherwise (almost) serviceable Linux systems (e.g., Red Hat
 EL-3.0 and Ubuntu 4.10) have a totally broken POSIX clock_settime()
@@ -159,6 +168,17 @@ Changes since ntpclient_2007_365:
  -- include netdb.h and always define _BSD_SOURCE to get prototype for herror
  -- minor formatting to align with Nilsson's fork
  -- add -fno-strict-aliasing as needed by traditional network coding style
+
+Changes since ntpclient_2010_365:
+ -- fixed and re-enabled -DPRECISION_SIOCGSTAMP, seems to work properly with
+      modern (e.g., 3.x or 4.x) Linux kernel
+ -- tweak coding style to work better with modern compilers (e.g.,
+      gcc-gcc-4.9.2 and clang-3.5.0)
+ -- make c99 the default
+ -- list more warning flags in disabled part of Makefile
+ -- minor whitespace, parenthesis, and spelling changes in source files
+ -- use LDLIBES instad of LDFLAGS for -lrt in Makefile (thanks, ChristophGr)
+ -- move _POSIX_C_SOURCE and _BSD_SOURCE to Makefile
 
 Bugs:
  -- Doesn't understand the LI (Leap second Indicator) field of an NTP packet

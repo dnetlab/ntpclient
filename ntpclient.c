@@ -1,7 +1,7 @@
 /*
  * ntpclient.c - NTP client
  *
- * Copyright (C) 1997, 1999, 2000, 2003, 2006, 2007, 2010  Larry Doolittle  <larry@doolittle.boa.org>
+ * Copyright (C) 1997, 1999, 2000, 2003, 2006, 2007, 2010, 2015  Larry Doolittle  <larry@doolittle.boa.org>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License (Version 2,
@@ -22,17 +22,12 @@
  *      - Support multiple (interleaved) servers
  *
  *  Compile with -DPRECISION_SIOCGSTAMP if your machine really has it.
- *  There are patches floating around to add this to Linux, but
- *  usually you only get an answer to the nearest jiffy.
- *  Hint for Linux hacker wannabes: look at the usage of get_fast_time()
- *  in net/core/dev.c, and its definition in kernel/time.c .
+ *  Older kernels (before the tickless era, pre 3.0?) only give an answer
+ *  to the nearest jiffy (1/100 second), not so interesting for us.
  *
  *  If the compile gives you any flak, check below in the section
  *  labelled "XXX fixme - non-automatic build configuration".
  */
-
-#define _POSIX_C_SOURCE 199309
-#define _BSD_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -144,7 +139,8 @@ static int get_current_freq(void)
 	struct timex txc;
 	txc.modes=0;
 	if (adjtimex(&txc) < 0) {
-		perror("adjtimex"); exit(1);
+		perror("adjtimex");
+		exit(1);
 	}
 	return txc.freq;
 #else
@@ -161,7 +157,8 @@ static int set_freq(int new_freq)
 	txc.modes = ADJ_FREQUENCY;
 	txc.freq = new_freq;
 	if (adjtimex(&txc) < 0) {
-		perror("adjtimex"); exit(1);
+		perror("adjtimex");
+		exit(1);
 	}
 	return txc.freq;
 #else
@@ -238,7 +235,7 @@ static void send_packet(int usd, u32 time_sent[2])
 		fprintf(stderr,"size error\n");
 		return;
 	}
-	memset(data,0,sizeof data);
+	memset(data, 0, sizeof data);
 	data[0] = htonl (
 		( LI << 30 ) | ( VN << 27 ) | ( MODE << 24 ) |
 		( STRATUM << 16) | ( POLL << 8 ) | ( PREC & 0xff ) );
@@ -253,23 +250,23 @@ static void send_packet(int usd, u32 time_sent[2])
 static void get_packet_timestamp(int usd, struct ntptime *udp_arrival_ntp)
 {
 #ifdef PRECISION_SIOCGSTAMP
-	/* XXX broken */
 	struct timeval udp_arrival;
 	if ( ioctl(usd, SIOCGSTAMP, &udp_arrival) < 0 ) {
 		perror("ioctl-SIOCGSTAMP");
-		gettimeofday(&udp_arrival, NULL);
+		ntpc_gettime(&udp_arrival_ntp->coarse, &udp_arrival_ntp->fine);
+	} else {
+		udp_arrival_ntp->coarse = udp_arrival.tv_sec + JAN_1970;
+		udp_arrival_ntp->fine   = NTPFRAC(udp_arrival.tv_usec);
 	}
-	udp_arrival_ntp->coarse = udp_arrival.tv_sec + JAN_1970;
-	udp_arrival_ntp->fine   = NTPFRAC(udp_arrival.tv_usec);
 #else
 	(void) usd;  /* not used */
 	ntpc_gettime(&udp_arrival_ntp->coarse, &udp_arrival_ntp->fine);
 #endif
 }
 
-static int check_source(int data_len, struct sockaddr *sa_source, unsigned int sa_len, struct ntp_control *ntpc)
+static int check_source(int data_len, struct sockaddr_in *sa_in, unsigned int sa_len, struct ntp_control *ntpc)
 {
-	struct sockaddr_in *sa_in=(struct sockaddr_in *)sa_source;
+	struct sockaddr *sa_source = (struct sockaddr *) sa_in;
 	(void) sa_len;  /* not used */
 	if (debug) {
 		printf("packet of length %d received\n",data_len);
@@ -455,7 +452,7 @@ static void stuff_net_addr(struct in_addr *p, char *hostname)
 static void setup_receive(int usd, unsigned int interface, short port)
 {
 	struct sockaddr_in sa_rcvr;
-	memset(&sa_rcvr,0,sizeof sa_rcvr);
+	memset(&sa_rcvr, 0, sizeof sa_rcvr);
 	sa_rcvr.sin_family=AF_INET;
 	sa_rcvr.sin_addr.s_addr=htonl(interface);
 	sa_rcvr.sin_port=htons(port);
@@ -470,7 +467,7 @@ static void setup_receive(int usd, unsigned int interface, short port)
 static void setup_transmit(int usd, char *host, short port, struct ntp_control *ntpc)
 {
 	struct sockaddr_in sa_dest;
-	memset(&sa_dest,0,sizeof sa_dest);
+	memset(&sa_dest, 0, sizeof sa_dest);
 	sa_dest.sin_family=AF_INET;
 	stuff_net_addr(&(sa_dest.sin_addr),host);
 	memcpy(ntpc->serv_addr,&(sa_dest.sin_addr),4); /* XXX asumes IPv4 */
@@ -482,7 +479,7 @@ static void setup_transmit(int usd, char *host, short port, struct ntp_control *
 static void primary_loop(int usd, struct ntp_control *ntpc)
 {
 	fd_set fds;
-	struct sockaddr sa_xmit;
+	struct sockaddr_in sa_xmit_in;
 	int i, pack_len, probes_sent, error;
 	socklen_t sa_xmit_len;
 	struct timeval to;
@@ -494,15 +491,15 @@ static void primary_loop(int usd, struct ntp_control *ntpc)
 	if (debug) printf("Listening...\n");
 
 	probes_sent=0;
-	sa_xmit_len=sizeof sa_xmit;
+	sa_xmit_len=sizeof sa_xmit_in;
 	to.tv_sec=0;
 	to.tv_usec=0;
 	for (;;) {
 		FD_ZERO(&fds);
-		FD_SET(usd,&fds);
-		i=select(usd+1,&fds,NULL,NULL,&to);  /* Wait on read or error */
+		FD_SET(usd, &fds);
+		i = select(usd+1, &fds, NULL, NULL, &to);  /* Wait on read or error */
 		if ((i!=1)||(!FD_ISSET(usd,&fds))) {
-			if (i<0) {
+			if (i < 0) {
 				if (errno != EINTR) perror("select");
 				continue;
 			}
@@ -517,13 +514,13 @@ static void primary_loop(int usd, struct ntp_control *ntpc)
 			continue;
 		}
 		pack_len=recvfrom(usd,incoming,sizeof_incoming,0,
-		                  &sa_xmit,&sa_xmit_len);
+		                  (struct sockaddr *) &sa_xmit_in,&sa_xmit_len);
 		error = ntpc->goodness;
 		if (pack_len<0) {
 			perror("recvfrom");
 		} else if (pack_len>0 && (unsigned)pack_len<sizeof_incoming){
 			get_packet_timestamp(usd, &udp_arrival_ntp);
-			if (check_source(pack_len, &sa_xmit, sa_xmit_len, ntpc)!=0) continue;
+			if (check_source(pack_len, &sa_xmit_in, sa_xmit_len, ntpc)!=0) continue;
 			if (rfc1305print(incoming_word, &udp_arrival_ntp, ntpc, &error)!=0) continue;
 			/* udp_handle(usd,incoming,pack_len,&sa_xmit,sa_xmit_len); */
 		} else {
@@ -653,11 +650,11 @@ int main(int argc, char *argv[]) {
 				break;
 #endif
 			case 's':
-				(ntpc.set_clock)++;
+				ntpc.set_clock++;
 				break;
 
 			case 't':
-				(ntpc.cross_check)=0;
+				ntpc.cross_check = 0;
 				break;
 
 			default:
@@ -697,8 +694,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Startup sequence */
-	if ((usd=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP))==-1)
-		{perror ("socket");exit(1);}
+	if ((usd=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP))==-1) {
+		perror ("socket");
+		exit(1);
+	}
 
 	setup_receive(usd, INADDR_ANY, udp_local_port);
 

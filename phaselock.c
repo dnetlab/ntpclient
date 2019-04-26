@@ -30,7 +30,7 @@ double min_delay = 800.0;  /* global, user-changeable, units are microseconds */
 
 #define RING_SIZE 16
 #define MAX_CORRECT 250   /* ppm change to system clock */
-#define MAX_C ((MAX_CORRECT)*65536)
+#define MAX_C (MAX_CORRECT)*65536
 static struct datum {
 	unsigned int absolute;
 	double skew;
@@ -48,12 +48,12 @@ static struct datum {
 	double smin;
 	double smax;
 	 */
-} d_ring[RING_SIZE];
+} d_ring[(RING_SIZE)];
 
 static struct _seg {
 	double slope;
 	double offset;
-} maxseg[RING_SIZE+1], minseg[RING_SIZE+1];
+} maxseg[(RING_SIZE)+1], minseg[(RING_SIZE)+1];
 
 #if 0
 /* draw a line from a to c, what the offset is of that line
@@ -68,8 +68,8 @@ static double interpolate(struct _seg *a, struct _seg *b, struct _seg *c)
 }
 #endif
 
-static int next_up(int i) { int r = i+1; if (r>=RING_SIZE) r=0; return r;}
-static int next_dn(int i) { int r = i-1; if (r<0) r=RING_SIZE-1; return r;}
+static int next_up(int i) { int r = i+1; if (r>=(RING_SIZE)) r=0; return r;}
+static int next_dn(int i) { int r = i-1; if (r<0) r=(RING_SIZE)-1; return r;}
 
 /* Looks at the line segments that start at point j, that end at
  * all following points (ending at index rp).  The initial point
@@ -108,8 +108,8 @@ static struct _polygon {
 
 static void polygon_reset(void)
 {
-	df.l_min = MIN_INIT;
-	df.r_min = MIN_INIT;
+	df.l_min = (MIN_INIT);
+	df.r_min = (MIN_INIT);
 }
 
 static double find_df(int *flag)
@@ -153,8 +153,10 @@ static void polygon_point(struct _seg *s)
 	r = find_shift(  s->slope, - s->offset);
 	if (l < df.l_min) df.l_min = l;
 	if (r < df.r_min) df.r_min = r;
-	if (debug) printf("constraint left:  %f %f \n", l, df.l_min);
-	if (debug) printf("constraint right: %f %f \n", r, df.r_min);
+	if (debug) {
+		printf("constraint left:  %f %f \n", l, df.l_min);
+		printf("constraint right: %f %f \n", r, df.r_min);
+	}
 }
 
 /* Something like linear feedback to be used when we are "close" to
@@ -189,7 +191,7 @@ int contemplate_data(unsigned int absolute, double skew, double errorbar, int fr
 	static int rp=0, valid=0;
 	int both_sides_now=0;
 	int j, n, c, max_avail, min_avail, dinit;
-	int nextj=0;	/* initialization not needed; but gcc can't figure out my logic */
+	int nextj=0;  /* initialization not needed; but gcc can't figure out my logic */
 	double cum;
 	struct _seg check, save_min, save_max;
 	double last_slope;
@@ -204,8 +206,8 @@ int contemplate_data(unsigned int absolute, double skew, double errorbar, int fr
 	d_ring[rp].errorbar = errorbar - min_delay;   /* quick hack to speed things up */
 	d_ring[rp].freq     = freq;
 
-	if (valid<RING_SIZE) ++valid;
-	if (valid==RING_SIZE) {
+	if (valid<(RING_SIZE)) ++valid;
+	if (valid==(RING_SIZE)) {
 		/*
 		 * Pass 1: correct for wandering freq's */
 		cum = 0.0;
@@ -229,7 +231,7 @@ int contemplate_data(unsigned int absolute, double skew, double errorbar, int fr
 		 * line segments in s.max vs. absolute space, which are
 		 * points in freq vs. dt space.  Find points in order of increasing
 		 * slope == freq */
-		dinit=1; last_slope=-2*MAX_CORRECT;
+		dinit=1; last_slope=-2*(MAX_CORRECT);
 		for (c=1, j=next_up(rp); ; j=nextj) {
 			nextj = search(rp, j, 1, 1, 0, &maxseg[c]);
 			        search(rp, j, 0, 1, 1, &check);
@@ -249,7 +251,7 @@ int contemplate_data(unsigned int absolute, double skew, double errorbar, int fr
 		 * line segments in s.min vs. absolute space, which are
 		 * points in freq vs. dt space.  These points are found in
 		 * order of decreasing slope. */
-		dinit=1; last_slope=+2*MAX_CORRECT;
+		dinit=1; last_slope=+2*(MAX_CORRECT);
 		for (c=1, j=next_up(rp); ; j=nextj) {
 			nextj = search(rp, j, 0, 0, 1, &minseg[c]);
 			        search(rp, j, 1, 0, 0, &check);
@@ -323,10 +325,10 @@ int contemplate_data(unsigned int absolute, double skew, double errorbar, int fr
 			printf (      " ( %.3f , %.1f )] ", save_max.slope, save_max.offset);
 			printf (" delta_f %.3f  computed_freq %d\n", delta_f, computed_freq);
 
-			if (computed_freq < -MAX_C) computed_freq=-MAX_C;
-			if (computed_freq >  MAX_C) computed_freq= MAX_C;
+			if (computed_freq < -(MAX_C)) computed_freq=-(MAX_C);
+			if (computed_freq >  (MAX_C)) computed_freq= (MAX_C);
 		}
 	}
-	rp = (rp+1)%RING_SIZE;
+	rp = (rp+1)%(RING_SIZE);
 	return computed_freq;
 }

@@ -36,7 +36,6 @@
  *  gcc -Wall -O adjtimex_1.c -o adjtimex
  */
 
-#define _POSIX_C_SOURCE 2
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdlib.h>
