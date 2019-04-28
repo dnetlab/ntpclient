@@ -1,0 +1,128 @@
+#!/bin/sh
+# Copyright (C) 2006-2014 OpenWrt.org
+
+. /lib/functions.sh
+
+unset SERVER
+unset PORT
+unset INTERVAL
+unset COUNT
+unset INTERFACE_GLOBAL
+unset ENABLED
+unset TIMEZONE
+unset SERVER1
+unset SERVER2
+
+NTPC=`which ntpclient`
+TZ_FILE="/tmp/TZ"
+
+check_server() {
+	local interface
+
+	[ -n "$SERVER" ] && return
+	
+	interface=$INTERFACE_GLOBAL
+
+	[ -n "$interface" ] && {
+		# $INTERFACE is passed from hotplug event
+		[ "$interface" = "$INTERFACE" ] || return
+	}
+
+	[ -z "$1" ] && return
+	$NTPC -c 1 -i 2 -h $1 > /dev/null && { SERVER=$1; }
+}
+
+set_drift() {
+	config_get freq $1 freq
+	[ -n "$freq" ] && adjtimex -f $freq >/dev/null
+}
+
+set_time_zone() {
+	local value=${TIMEZONE}
+	if [ ${value} -lt 0 ]; then
+		value=$((0 - ${value}))
+		remainder=$((${value} % 60))
+		if [ ${remainder} -lt 10 ]; then
+			remainder="0${remainder}"
+		fi
+		echo "GTM+$((${value} / 60)):${remainder}" > ${TZ_FILE}
+	elif [ ${value} -eq 0 ]; then
+		echo "GTM+0:00" > ${TZ_FILE}
+	else
+		remainder=$((${value} % 60))
+		if [ ${remainder} -lt 10 ]; then
+			remainder="0${remainder}"
+		fi
+		echo "GTM-$((${value} / 60)):${remainder}" > ${TZ_FILE}
+	fi
+	#[ -n "$zonename" ] && [ -f "/usr/share/zoneinfo/$zonename" ] && ln -s "/usr/share/zoneinfo/$zonename" /tmp/localtime
+	# apply timezone to kernel
+	date -k
+}
+
+start_ntpclient() {
+    	if [ "$ENABLED" -eq "1" ]; then 
+		config_foreach set_drift ntpdrift
+		check_server $SERVER1
+		check_server $SERVER2
+		set_time_zone
+		[ -z "$SERVER" ] && exit 0
+		logger starting ntpclient
+		$NTPC ${COUNT:+-c $COUNT} ${INTERVAL:+-i $INTERVAL} -s -l -D -h $SERVER 2> /dev/null
+	fi
+}
+
+stop_ntpclient() {
+    	if [ -n "$NTP_RUNNING" ]; then
+		logger stopping ntpclient
+		killall ntpclient
+	fi
+}
+
+load_settings() {
+	local enabled
+	local interval
+	local count
+	local iface
+	local timezone
+	local server1
+	local server2
+	
+	config_get enabled $1 enabled
+	config_get interval $1 interval
+	config_get count $1 count
+	config_get interface $1 interface
+	config_get timezone $1 timezone
+	config_get server1 $1 server1
+	config_get server2 $1 server2
+	
+	[ -n "$enabled" ] && ENABLED=$enabled
+	[ -n "$count" ] && COUNT=$count
+	[ -n "$interval" ] && INTERVAL=$interval
+	[ -n "$interface" ] && INTERFACE_GLOBAL=$interface
+	[ -n "$timezone" ] && TIMEZONE=$timezone
+	[ -n "$server1" ] && SERVER1=$server1
+	[ -n "$server2" ] && SERVER2=$server2
+}
+
+config_load system
+config_foreach load_settings ntpclient
+
+NTP_RUNNING=`ps  | grep $NTPC | grep -v grep`
+
+restart(){
+	stop_ntpclient
+	start_ntpclient
+}
+
+case "${1}" in
+    start)
+        start_ntpclient 
+    ;;
+    stop)
+        stop_ntpclient 
+    ;;
+	restart)
+		restart
+	;;
+esac

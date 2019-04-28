@@ -1,0 +1,9 @@
+#!/bin/sh
+case "${ACTION:-ifup}" in
+    ifup)
+        /etc/init.d/ntpc restart
+    ;;
+    ifdown)
+        /etc/init.d/ntpc stop
+    ;;
+esac
